@@ -29,6 +29,7 @@ Handsontable.UndoRedo = function(instance) {
   this.ignoreNewActions = false;
   instance.addHook('afterChange', function(changes, origin) {
     if (changes) {
+      console.log('after change undoredo', changes, origin);
       let action = new Handsontable.UndoRedo.ChangeAction(changes);
       plugin.done(action);
     }
@@ -36,6 +37,7 @@ Handsontable.UndoRedo = function(instance) {
 
   instance.addHook('afterCreateRow', function(index, amount, createdAutomatically) {
 
+    console.log('after create row', createdAutomatically);
     if (createdAutomatically) {
       return;
     }
