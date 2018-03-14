@@ -21,23 +21,27 @@ import {stopImmediatePropagation} from './../../helpers/dom/event';
  * @class UndoRedo
  * @plugin UndoRedo
  */
-Handsontable.UndoRedo = function(instance) {
+Handsontable.UndoRedo = function(instance, sourcesToIgnore) {
   let plugin = this;
   this.instance = instance;
   this.doneActions = [];
   this.undoneActions = [];
   this.ignoreNewActions = false;
+  this.sourcesToIgnore = sourcesToIgnore;
   instance.addHook('afterChange', function(changes, origin) {
-    if (changes) {
-      console.log('after change undoredo', changes, origin);
+    const ignore = plugin.sourcesToIgnore.find((source) => origin === source);
+    if (changes && ignore === undefined) {
+      console.log('undoredo after change', changes, origin);
       let action = new Handsontable.UndoRedo.ChangeAction(changes);
       plugin.done(action);
+    } else {
+      console.log('undeoredo ignore!', origin);
     }
   });
 
   instance.addHook('afterCreateRow', function(index, amount, createdAutomatically) {
 
-    console.log('after create row', createdAutomatically);
+    console.log('undoredo after create row', createdAutomatically);
     if (createdAutomatically) {
       return;
     }
@@ -47,6 +51,7 @@ Handsontable.UndoRedo = function(instance) {
   });
 
   instance.addHook('beforeRemoveRow', function(index, amount) {
+    console.log('undoredo beforeRemoveRow');
     let originalData = plugin.instance.getSourceData();
     index = (originalData.length + index) % originalData.length;
     let removedData = originalData.slice(index, index + amount);
@@ -55,7 +60,7 @@ Handsontable.UndoRedo = function(instance) {
   });
 
   instance.addHook('afterCreateCol', function(index, amount, createdAutomatically) {
-
+    console.log('undoredo afterCreateCol', createdAutomatically);
     if (createdAutomatically) {
       return;
     }
@@ -66,6 +71,7 @@ Handsontable.UndoRedo = function(instance) {
 
   instance.addHook('beforeRemoveCol', function(index, amount) {
     let originalData = plugin.instance.getData();
+    console.log('undoredo beforeRemoveCol');
     index = (plugin.instance.countCols() + index) % plugin.instance.countCols();
     let removedData = [];
     let headers = [];
@@ -102,6 +108,7 @@ Handsontable.UndoRedo = function(instance) {
   });
 
   instance.addHook('beforeRowMove', function(movedRows, target) {
+    console.log('undoredo beforeRowMove');
     plugin.done(new Handsontable.UndoRedo.RowMoveAction(movedRows, target));
   });
 };
@@ -486,6 +493,7 @@ Handsontable.UndoRedo.RowMoveAction.prototype.redo = function(instance, redoneCa
 function init() {
   let instance = this;
   let pluginEnabled = typeof instance.getSettings().undo == 'undefined' || instance.getSettings().undo;
+  const sourcesToIgnore = instance.getSettings().undoIgnoreSources;
 
   if (pluginEnabled) {
     if (!instance.undoRedo) {
@@ -496,7 +504,7 @@ function init() {
        * @memberof! Handsontable.Core#
        * @type {UndoRedo}
        */
-      instance.undoRedo = new Handsontable.UndoRedo(instance);
+      instance.undoRedo = new Handsontable.UndoRedo(instance, sourcesToIgnore || []);
 
       exposeUndoRedoMethods(instance);
 
