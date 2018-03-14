@@ -21,21 +21,26 @@ import {stopImmediatePropagation} from './../../helpers/dom/event';
  * @class UndoRedo
  * @plugin UndoRedo
  */
-Handsontable.UndoRedo = function(instance) {
+Handsontable.UndoRedo = function(instance, sourcesToIgnore) {
   let plugin = this;
   this.instance = instance;
   this.doneActions = [];
   this.undoneActions = [];
   this.ignoreNewActions = false;
+  this.sourcesToIgnore = sourcesToIgnore;
+
+  function isIgnoredSource(source) {
+    return plugin.sourcesToIgnore.indexOf(source) >= 0;
+  }
 
   instance.addHook('afterChange', function(changes, source) {
-    if (changes && source !== 'undo' && source !== 'redo') {
+    if (changes && source !== 'undo' && source !== 'redo' && !isIgnoredSource(source)) {
       plugin.done(new Handsontable.UndoRedo.ChangeAction(changes));
     }
   });
 
   instance.addHook('afterCreateRow', function(index, amount, source) {
-    if (source === 'undo' || source === 'redo' || source === 'auto') {
+    if (source === 'undo' || source === 'redo' || source === 'auto' || isIgnoredSource(source)) {
       return;
     }
 
@@ -44,7 +49,7 @@ Handsontable.UndoRedo = function(instance) {
   });
 
   instance.addHook('beforeRemoveRow', function(index, amount, logicRows, source) {
-    if (source === 'undo' || source === 'redo' || source === 'auto') {
+    if (source === 'undo' || source === 'redo' || source === 'auto' || isIgnoredSource(source)) {
       return;
     }
 
@@ -58,7 +63,7 @@ Handsontable.UndoRedo = function(instance) {
   });
 
   instance.addHook('afterCreateCol', function(index, amount, source) {
-    if (source === 'undo' || source === 'redo' || source === 'auto') {
+    if (source === 'undo' || source === 'redo' || source === 'auto' || isIgnoredSource(source)) {
       return;
     }
 
@@ -66,7 +71,7 @@ Handsontable.UndoRedo = function(instance) {
   });
 
   instance.addHook('beforeRemoveCol', function(index, amount, logicColumns, source) {
-    if (source === 'undo' || source === 'redo' || source === 'auto') {
+    if (source === 'undo' || source === 'redo' || source === 'auto' || isIgnoredSource(source)) {
       return;
     }
 
@@ -516,6 +521,7 @@ Handsontable.UndoRedo.RowMoveAction.prototype.redo = function(instance, redoneCa
 function init() {
   let instance = this;
   let pluginEnabled = typeof instance.getSettings().undo == 'undefined' || instance.getSettings().undo;
+  const sourcesToIgnore = instance.getSettings().undoRedoIgnoreSources;
 
   if (pluginEnabled) {
     if (!instance.undoRedo) {
@@ -526,7 +532,7 @@ function init() {
        * @memberof! Handsontable.Core#
        * @type {UndoRedo}
        */
-      instance.undoRedo = new Handsontable.UndoRedo(instance);
+      instance.undoRedo = new Handsontable.UndoRedo(instance, sourcesToIgnore || []);
 
       exposeUndoRedoMethods(instance);
 
