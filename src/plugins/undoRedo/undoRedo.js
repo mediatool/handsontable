@@ -30,7 +30,11 @@ Handsontable.UndoRedo = function(instance, sourcesToIgnore) {
   this.sourcesToIgnore = sourcesToIgnore;
 
   function isIgnoredSource(source) {
-    return plugin.sourcesToIgnore.indexOf(source) >= 0;
+    let tmp = plugin.sourcesToIgnore.indexOf(source) >= 0;
+    if (tmp) {
+      console.log('we ignoring now bois!!!', source);
+    }
+    return tmp;
   }
 
   instance.addHook('afterChange', function(changes, source) {
