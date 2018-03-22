@@ -140,7 +140,9 @@ Handsontable.UndoRedo.prototype.undo = function() {
 
     this.ignoreNewActions = true;
     let that = this;
+    console.log('UNDOING');
     action.undo(this.instance, function() {
+      console.log('PUSHING UNDONE ACTION');
       that.ignoreNewActions = false;
       that.undoneActions.push(action);
     });
@@ -169,7 +171,9 @@ Handsontable.UndoRedo.prototype.redo = function() {
 
     this.ignoreNewActions = true;
     let that = this;
+    console.log('REDOING');
     action.redo(this.instance, function() {
+      console.log('PUSHING DONE ACTION');
       that.ignoreNewActions = false;
       that.doneActions.push(action);
     });
@@ -302,15 +306,32 @@ Handsontable.UndoRedo.RemoveRowAction = function(index, data) {
 inherit(Handsontable.UndoRedo.RemoveRowAction, Handsontable.UndoRedo.Action);
 
 Handsontable.UndoRedo.RemoveRowAction.prototype.undo = function(instance, undoneCallback) {
-  let spliceArgs = [this.index, 0];
-  Array.prototype.push.apply(spliceArgs, this.data);
+  // let spliceArgs = [this.index, 0];
+  // Array.prototype.push.apply(spliceArgs, this.data);
+  //
+  // Array.prototype.splice.apply(instance.getSourceData(), spliceArgs);
+  //
+  // instance.runHooks('afterCreateRow', this.index, this.data.length, true);
+  //
+  // instance.addHookOnce('afterRender', undoneCallback);
+  // instance.render();
 
-  Array.prototype.splice.apply(instance.getSourceData(), spliceArgs);
+  instance.alter('insert_row', this.index, this.data.length, 'undo');
 
-  instance.runHooks('afterCreateRow', this.index, this.data.length, true);
+  let data = [];
+  let rowIndex = this.index;
+  for (let i = 0; i < this.data.length; i++, rowIndex++) {
+    const keys = Object.keys(this.data[i]);
+    for (let k = 0; k < keys.length; k++) {
+      let prop = keys[k];
+      data.push([rowIndex, prop, this.data[i][prop]]);
+    }
+  }
 
-  instance.addHookOnce('afterRender', undoneCallback);
-  instance.render();
+  instance.addHookOnce('afterChange', undoneCallback);
+
+  instance.setDataAtRowProp(data, null, null, 'undo');
+
 };
 Handsontable.UndoRedo.RemoveRowAction.prototype.redo = function(instance, redoneCallback) {
   instance.addHookOnce('afterRemoveRow', redoneCallback);
@@ -523,6 +544,14 @@ function init() {
   }
 }
 
+function busywork() {
+  let start = Date.now();
+  let now = start;
+  while ((now - start) < 2000) {
+    now = Date.now();
+  }
+}
+
 function onBeforeKeyDown(event) {
   let instance = this;
 
@@ -530,9 +559,15 @@ function onBeforeKeyDown(event) {
 
   if (ctrlDown) {
     if (event.keyCode === 89 || (event.shiftKey && event.keyCode === 90)) { //CTRL + Y or CTRL + SHIFT + Z
+      console.log('busy start redo');
+      busywork();
+      console.log('busy end redo');
       instance.undoRedo.redo();
       stopImmediatePropagation(event);
     } else if (event.keyCode === 90) { // CTRL + Z
+      console.log('busy start undo');
+      busywork();
+      console.log('busy end undo');
       instance.undoRedo.undo();
       stopImmediatePropagation(event);
     }
