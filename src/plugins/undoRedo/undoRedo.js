@@ -7,6 +7,34 @@ import {rangeEach} from './../../helpers/number';
 import {inherit, deepClone} from './../../helpers/object';
 import {stopImmediatePropagation} from './../../helpers/dom/event';
 
+function sequentialJobQueueFactory() {
+  let executingJob = false;
+  let queue = [];
+
+  const self = {
+    scheduleJob: function(fn) {
+      executingJob = true;
+      setTimeout(() => {
+        fn(() => {
+          executingJob = false;
+          if (queue.length > 0) {
+            self.scheduleJob(queue.shift());
+          }
+        });
+      }, 0);
+    },
+    executeJob: function(fn) {
+      if ((queue.length === 0) && (executingJob === false)) {
+        self.scheduleJob(fn);
+      } else {
+        queue.push(fn);
+      }
+    }
+  };
+
+  return self;
+}
+
 /**
  * @description
  * Handsontable UndoRedo plugin. It allows to undo and redo certain actions done in the table.
@@ -28,6 +56,7 @@ Handsontable.UndoRedo = function(instance, sourcesToIgnore) {
   this.undoneActions = [];
   this.ignoreNewActions = false;
   this.sourcesToIgnore = sourcesToIgnore;
+  this.keyQueue = sequentialJobQueueFactory();
   instance.addHook('afterChange', function(changes, origin) {
     const ignore = plugin.sourcesToIgnore.find((source) => origin === source);
     if (changes && ignore === undefined) {
@@ -126,7 +155,7 @@ Handsontable.UndoRedo.prototype.done = function(action) {
  * @function undo
  * @memberof UndoRedo#
  */
-Handsontable.UndoRedo.prototype.undo = function() {
+Handsontable.UndoRedo.prototype.undo = function(doneCallback) {
   if (this.isUndoAvailable()) {
     let action = this.doneActions.pop();
     let actionClone = deepClone(action);
@@ -145,6 +174,7 @@ Handsontable.UndoRedo.prototype.undo = function() {
       console.log('PUSHING UNDONE ACTION');
       that.ignoreNewActions = false;
       that.undoneActions.push(action);
+      doneCallback();
     });
 
     instance.runHooks('afterUndo', actionClone);
@@ -157,7 +187,7 @@ Handsontable.UndoRedo.prototype.undo = function() {
  * @function redo
  * @memberof UndoRedo#
  */
-Handsontable.UndoRedo.prototype.redo = function() {
+Handsontable.UndoRedo.prototype.redo = function(doneCallback) {
   if (this.isRedoAvailable()) {
     let action = this.undoneActions.pop();
     let actionClone = deepClone(action);
@@ -176,6 +206,7 @@ Handsontable.UndoRedo.prototype.redo = function() {
       console.log('PUSHING DONE ACTION');
       that.ignoreNewActions = false;
       that.doneActions.push(action);
+      doneCallback();
     });
 
     instance.runHooks('afterRedo', actionClone);
@@ -552,6 +583,33 @@ function busywork() {
   }
 }
 
+function ValidatorsQueue() { // moved this one level up so it can be used in any function here. Probably this should be moved to a separate file
+  var resolved = false;
+
+  return {
+    validatorsInQueue: 0,
+    valid: true,
+    addValidatorToQueue: function() {
+      this.validatorsInQueue++;
+      resolved = false;
+    },
+    removeValidatorFormQueue: function() {
+      this.validatorsInQueue = this.validatorsInQueue - 1 < 0 ? 0 : this.validatorsInQueue - 1;
+      this.checkIfQueueIsEmpty();
+    },
+    onQueueEmpty: function(valid) {
+    },
+    checkIfQueueIsEmpty: function() {
+      /* jshint ignore:start */
+      if (this.validatorsInQueue == 0 && resolved == false) {
+        resolved = true;
+        this.onQueueEmpty(this.valid);
+      }
+      /* jshint ignore:end */
+    }
+  };
+}
+
 function onBeforeKeyDown(event) {
   let instance = this;
 
@@ -562,13 +620,13 @@ function onBeforeKeyDown(event) {
       console.log('busy start redo');
       busywork();
       console.log('busy end redo');
-      instance.undoRedo.redo();
+      instance.undoRedo.keyQueue.executeJob(instance.undoRedo.redo.bind(instance.undoRedo));
       stopImmediatePropagation(event);
     } else if (event.keyCode === 90) { // CTRL + Z
       console.log('busy start undo');
       busywork();
       console.log('busy end undo');
-      instance.undoRedo.undo();
+      instance.undoRedo.keyQueue.executeJob(instance.undoRedo.undo.bind(instance.undoRedo));
       stopImmediatePropagation(event);
     }
   }
